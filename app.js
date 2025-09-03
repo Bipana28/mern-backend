@@ -10,7 +10,7 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors({
-    origin: '*'
+    origin: ['*','https://mern-frontend-ten-iota.vercel.app']
 })); // to allow cross-origin requests
 app.use(express.json()); 
  const mongoose= require('mongoose');
@@ -20,19 +20,17 @@ app.use(express.json());
 app.use(express.json())//express le json handle garna sakdaina....so this function is for it to use json and understand
 
 connectToDatabase();
+const BASE_URL = "https://mern-backend-mnl9.onrender.com"
+
 //app.get("/path",(request,respond))
 app.get("/", (req,res) => { //abc= request, add= respond
     res.send('Hello World');
 })
-
 app.post("/book",upload.single('imageUrl'), async(req,res) =>{// pahila call ani middle ware ko kam
    // console.log(req.body);
-   let fileName;
-   if(!req.file) {
-    fileName ="1753266667770-rose.jpg"   }
-   else{
-    fileName ="http://localhost:3000/" + req.file.filename;
-   }
+let fileName = req.file
+        ? `${BASE_URL}/${req.file.filename}`
+        : "https://cdn.vectorstock.com/i/preview-1x/77/30/default-avatar-profile-icon-grey-photo-placeholder-vector-17317730.jpg";
 
    const{ bookName, bookPrice, isbnNumber, authorName, publishedAt, publication, description} = req.body
    await Book.create({
@@ -91,16 +89,11 @@ app.delete("/book/:id", async (req, res) => {
         }
 
         // Delete image file only if it's stored locally (not external link)
-        if (book.imageUrl && book.imageUrl.startsWith("http://localhost:3000/")) {
-            const localHostUrlLength = "http://localhost:3000/".length;
-            const imagePath = book.imageUrl.slice(localHostUrlLength);
-
+        if (book.imageUrl && book.imageUrl.startsWith(BASE_URL)) {
+            const imagePath = book.imageUrl.slice(BASE_URL.length + 1);
             fs.unlink(`storage/${imagePath}`, (err) => {
-                if (err) {
-                    console.error("Error deleting file:", err);
-                } else {
-                    console.log("Image file deleted successfully");
-                }
+                if (err) console.error("Error deleting file:", err);
+                else console.log("Image file deleted successfully");
             });
         }
 
@@ -120,45 +113,45 @@ app.delete("/book/:id", async (req, res) => {
 });
 
 // update operation 
-app.patch("/book/:id", upload.single('imageUrl'), async (req, res) => {// Patch is used for update operation
-    // patch le kunai pani field update garna sakxa
-
+app.patch("/book/:id", upload.single('imageUrl'), async (req, res) => {
     const id = req.params.id // kun book update garney id ho yo
-    const { bookName, bookPrice, authorName, publishedAt, publication, isbnNumber, description } = req.body
-    const oldDatas = await Book.findById(id)// old file lai upload garna
-    let fileName;
-    if (req.file)
-    {
-        const oldImagePath = oldDatas.imageUrl; // purano file ko naam
-console.log(oldImagePath);
-     const localHostUrlLength = "http://localhost:3000/".length; 
-     const newOldImagePath = oldImagePath.slice(localHostUrlLength)
+    const { bookName, bookPrice, authorName, publishedAt, publication, isbnNumber } = req.body
+    const oldDatas = await Book.findById(id)
+    if (!oldDatas) {
+        return res.status(404).json({ message: "Book not found" });
+    }
 
-     fs.unlink('storage/${newOldImagePath}',(err) =>
-     {
-if (err) {
-console.log(err)
-}
-else {
-    console.log("file delete successfully")
-}
-     })
-    fileName="http://localhost:3000/" + req.file.fileName
-}
+    let fileName = oldDatas.imageUrl;
+
+    if (req.file) {
+        // delete old file if it was not a placeholder image
+        if (oldDatas.imageUrl && oldDatas.imageUrl.startsWith(BASE_URL)) {
+            const oldImagePath = oldDatas.imageUrl.slice(BASE_URL.length + 1);
+            fs.unlink(`storage/${oldImagePath}`, (err) => {
+                if (err) console.log("Error deleting old file:", err);
+                else console.log("Old file deleted successfully");
+            });
+        }
+
+        // save new file path
+        fileName = `${BASE_URL}/${req.file.filename}`;
+
+    }
+
     await Book.findByIdAndUpdate(id, {
-        bookName: bookName,
-        bookPrice: bookPrice,
-        authorName: authorName,
-        publication: publication,
-        publishedAt: publishedAt,
-        isbnNumber: isbnNumber,
-        description: description
-    })
-    res.status(200).json({ // res.status(200) le 200 ko status code return garxa
-        message: "Book Updated Successfully"
-    })
-})
+        bookName,
+        bookPrice,
+        authorName,
+        publication,
+        publishedAt,
+        isbnNumber,
+        imageUrl: fileName,   //  update image URL if changed
+    });
 
+    res.status(200).json({
+        message: "Book Updated Successfully"
+    });
+})
 app.use(express.static("./storage/"))
 app.listen(3000, () => {//yo last ma rakhni......process.env.PORT(write this in 3000)
 console.log('Nodejs is running on port 3000');
