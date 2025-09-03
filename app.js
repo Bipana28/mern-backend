@@ -21,7 +21,7 @@ app.use(express.json())//express le json handle garna sakdaina....so this functi
 
 connectToDatabase();
 //app.get("/path",(request,respond))
-app.get("/postman", (req,res) => { //abc= request, add= respond
+app.get("/", (req,res) => { //abc= request, add= respond
     res.send('Hello World');
 })
 
